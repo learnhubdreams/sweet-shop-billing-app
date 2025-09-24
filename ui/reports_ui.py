@@ -60,7 +60,26 @@ class ReportsUI:
         self.load_reports()
 
         def load_reports(self):
-         from_date = self.from_date.get_date().strftime("%Y-%m-%d")
+        # Load sales data
+         for row in self.sales_tree.get_children():
+            self.sales_tree.delete(row)
+
+        sales_summary = self.db.get_sales_summary()
+        for method, total in sales_summary.items():
+            self.sales_tree.insert("", "end", values=(method, f"₹{total:.2f}"))
+
+        # Load stock data
+        for row in self.stock_tree.get_children():
+            self.stock_tree.delete(row)
+
+        sweets = self.db.get_all_sweets()
+        for sweet in sweets:
+            self.stock_tree.insert("", "end", values=(
+                sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
+            ))
+
+            
+        from_date = self.from_date.get_date().strftime("%Y-%m-%d")
         to_date = self.to_date.get_date().strftime("%Y-%m-%d")
 
         # Clear sales tree
