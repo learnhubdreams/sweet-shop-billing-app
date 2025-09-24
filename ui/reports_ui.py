@@ -3,6 +3,10 @@
 import tkinter as tk
 from tkinter import ttk
 from utils.db_helper import DBHelper
+import csv
+import os
+from datetime import datetime
+
 
 class ReportsUI:
     def __init__(self, parent):
@@ -32,6 +36,8 @@ class ReportsUI:
 
         # Refresh button
         ttk.Button(frame, text="Refresh Reports", command=self.load_reports).pack(pady=10)
+        ttk.Button(frame, text="Export Reports", command=self.export_reports).pack(pady=5)
+
 
         self.load_reports()
 
@@ -53,3 +59,27 @@ class ReportsUI:
             self.stock_tree.insert("", "end", values=(
                 sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
             ))
+    def export_reports(self):
+        today = datetime.now().strftime("%Y-%m-%d")
+        export_dir = "exports"
+        os.makedirs(export_dir, exist_ok=True)
+
+        # Export Sales Summary
+        sales_file = os.path.join(export_dir, f"daily_sales_{today}.csv")
+        with open(sales_file, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Payment Method", "Amount"])
+            for row in self.sales_tree.get_children():
+                data = self.sales_tree.item(row)['values']
+                writer.writerow(data)
+
+        # Export Stock Report
+        stock_file = os.path.join(export_dir, f"current_stock_{today}.csv")
+        with open(stock_file, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Sweet Name", "Unit", "Price", "Stock"])
+            for row in self.stock_tree.get_children():
+                data = self.stock_tree.item(row)['values']
+                writer.writerow(data)
+
+        tk.messagebox.showinfo("Export Successful", f"Reports saved in '{export_dir}/' folder.")
