@@ -34,13 +34,20 @@ class StockUI:
 
         ttk.Button(frame, text="Add / Update Sweet", command=self.add_or_update_sweet).grid(row=0, column=8, padx=5, pady=5)
         ttk.Button(frame, text="Delete Selected", command=self.delete_selected_sweet).grid(row=0, column=9, padx=5, pady=5)
+        # 🔍 Search bar
+        ttk.Label(frame, text="Search Sweet:").grid(row=1, column=0, sticky="w", pady=5, padx=5)
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", self.filter_stock_table)
+        search_entry = ttk.Entry(frame, textvariable=self.search_var, width=30)
+        search_entry.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
 
 
         # Treeview to show stock
         self.tree = ttk.Treeview(frame, columns=("Name", "Unit", "Price", "Stock"), show="headings")
         for col in ("Name", "Unit", "Price", "Stock"):
             self.tree.heading(col, text=col)
-        self.tree.grid(row=1, column=0, columnspan=9, pady=10, sticky="nsew")
+        self.tree.grid(row=2, column=0, columnspan=10, pady=10, sticky="nsew")
+
 
         self.refresh_stock()
 
@@ -77,10 +84,9 @@ class StockUI:
             self.tree.delete(row)
 
         sweets = self.db.get_all_sweets()
-        for sweet in sweets:
-            self.tree.insert("", "end", values=(
-                sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
-            ))
+        self.search_var.set("")  # Reset filter
+        self.filter_stock_table()
+
     def delete_selected_sweet(self):
         selected = self.tree.selection()
         if not selected:
@@ -94,3 +100,15 @@ class StockUI:
             self.db.delete_sweet(sweet_name)
             self.refresh_stock()
             messagebox.showinfo("Deleted", f"'{sweet_name}' has been deleted.")
+    def filter_stock_table(self, *args):
+        search_term = self.search_var.get().lower()
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        sweets = self.db.get_all_sweets()
+        filtered = [s for s in sweets if search_term in s["name"].lower()]
+
+        for sweet in filtered:
+            self.tree.insert("", "end", values=(
+                sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
+            ))
