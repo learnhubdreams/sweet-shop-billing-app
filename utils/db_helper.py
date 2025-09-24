@@ -112,3 +112,13 @@ class DBHelper:
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM sweets WHERE name = ?", (name,))
         self.conn.commit()
+    def get_sales_summary_by_date_range(self, from_date, to_date):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT payment_mode, SUM(total) as total
+            FROM sales
+            WHERE date BETWEEN ? AND ?
+            GROUP BY payment_mode
+        """, (from_date, to_date))
+
+        return {row["payment_mode"]: row["total"] for row in cursor.fetchall()}

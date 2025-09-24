@@ -6,6 +6,9 @@ from utils.db_helper import DBHelper
 import csv
 import os
 from datetime import datetime
+from tkcalendar import DateEntry
+from datetime import datetime
+
 
 
 class ReportsUI:
@@ -17,6 +20,21 @@ class ReportsUI:
     def setup_ui(self):
         frame = ttk.Frame(self.parent, padding=10)
         frame.pack(fill='both', expand=True)
+
+        # Date range selectors
+        ttk.Label(frame, text="From Date:").pack(pady=2)
+        self.from_date = DateEntry(frame, width=12, background='darkblue',
+                        foreground='white', borderwidth=2, year=datetime.now().year)
+        self.from_date.pack(pady=2)
+
+        ttk.Label(frame, text="To Date:").pack(pady=2)
+        self.to_date = DateEntry(frame, width=12, background='darkblue',
+                        foreground='white', borderwidth=2, year=datetime.now().year)
+        self.to_date.pack(pady=2)
+
+        # Button to refresh with date filter
+        ttk.Button(frame, text="Show Report", command=self.load_reports).pack(pady=5)
+
 
         # Section: Daily Sales by Payment Mode
         ttk.Label(frame, text="Today's Sales by Payment Method", font=("Arial", 12, "bold")).pack(anchor='w', pady=5)
@@ -41,24 +59,23 @@ class ReportsUI:
 
         self.load_reports()
 
-    def load_reports(self):
-        # Load sales data
+        def load_reports(self):
+         from_date = self.from_date.get_date().strftime("%Y-%m-%d")
+        to_date = self.to_date.get_date().strftime("%Y-%m-%d")
+
+        # Clear sales tree
         for row in self.sales_tree.get_children():
             self.sales_tree.delete(row)
 
-        sales_summary = self.db.get_sales_summary()
-        for method, total in sales_summary.items():
-            self.sales_tree.insert("", "end", values=(method, f"₹{total:.2f}"))
+        # Query sales summary grouped by payment mode in date range
+        sales_data = self.db.get_sales_summary_by_date_range(from_date, to_date)
 
-        # Load stock data
-        for row in self.stock_tree.get_children():
-            self.stock_tree.delete(row)
+        for payment_mode, total in sales_data.items():
+            self.sales_tree.insert("", "end", values=(payment_mode, total))
 
-        sweets = self.db.get_all_sweets()
-        for sweet in sweets:
-            self.stock_tree.insert("", "end", values=(
-                sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
-            ))
+        # Clear and reload stock tree as before
+        self.load_stock()
+
     def export_reports(self):
         today = datetime.now().strftime("%Y-%m-%d")
         export_dir = "exports"
