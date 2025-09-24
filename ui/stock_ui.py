@@ -33,6 +33,8 @@ class StockUI:
         self.stock_entry.grid(row=0, column=7, padx=5, pady=5)
 
         ttk.Button(frame, text="Add / Update Sweet", command=self.add_or_update_sweet).grid(row=0, column=8, padx=5, pady=5)
+        ttk.Button(frame, text="Delete Selected", command=self.delete_selected_sweet).grid(row=0, column=9, padx=5, pady=5)
+
 
         # Treeview to show stock
         self.tree = ttk.Treeview(frame, columns=("Name", "Unit", "Price", "Stock"), show="headings")
@@ -79,3 +81,16 @@ class StockUI:
             self.tree.insert("", "end", values=(
                 sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
             ))
+    def delete_selected_sweet(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("No selection", "Please select a sweet to delete.")
+            return
+
+        sweet_name = self.tree.item(selected[0])['values'][0]
+
+        confirm = messagebox.askyesno("Confirm Delete", f"Delete '{sweet_name}' from stock?")
+        if confirm:
+            self.db.delete_sweet(sweet_name)
+            self.refresh_stock()
+            messagebox.showinfo("Deleted", f"'{sweet_name}' has been deleted.")

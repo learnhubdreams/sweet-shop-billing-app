@@ -108,3 +108,7 @@ class DBHelper:
 
         data = {row["payment_mode"]: row["total"] for row in cursor.fetchall()}
         return data
+    def delete_sweet(self, name):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM sweets WHERE name = ?", (name,))
+        self.conn.commit()
