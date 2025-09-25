@@ -1,114 +1,81 @@
 # ui/stock_ui.py
-
 import tkinter as tk
 from tkinter import ttk, messagebox
-from utils.db_helper import DBHelper
+from utils.units import parse_quantity_unit
 
-class StockUI:
-    def __init__(self, parent):
-        self.db = DBHelper()
-        self.parent = parent
+class StockUI(tk.Frame):
+    def __init__(self, parent, db):
+        super().__init__(parent)
+        self.db = db
         self.setup_ui()
 
     def setup_ui(self):
-        frame = ttk.Frame(self.parent, padding=10)
-        frame.pack(fill='both', expand=True)
+        self.grid_columnconfigure(1, weight=1)
 
-        # Entry for new sweet
-        ttk.Label(frame, text="Sweet Name:").grid(row=0, column=0, padx=5, pady=5)
-        self.name_entry = ttk.Entry(frame)
-        self.name_entry.grid(row=0, column=1, padx=5, pady=5)
+        # Sweet name
+        tk.Label(self, text="Sweet Name:").grid(row=0, column=0, sticky="w")
+        self.name_entry = tk.Entry(self)
+        self.name_entry.grid(row=0, column=1, sticky="ew")
 
-        ttk.Label(frame, text="Price (per unit):").grid(row=0, column=2, padx=5, pady=5)
-        self.price_entry = ttk.Entry(frame)
-        self.price_entry.grid(row=0, column=3, padx=5, pady=5)
+        # Quantity (with unit)
+        tk.Label(self, text="Quantity (e.g., '500 g', '2 kg', '3 pcs'):").grid(row=1, column=0, sticky="w")
+        self.qty_entry = tk.Entry(self)
+        self.qty_entry.grid(row=1, column=1, sticky="ew")
 
-        ttk.Label(frame, text="Unit (kg/piece):").grid(row=0, column=4, padx=5, pady=5)
-        self.unit_combo = ttk.Combobox(frame, values=["kg", "piece"], state="readonly")
-        self.unit_combo.grid(row=0, column=5, padx=5, pady=5)
-        self.unit_combo.current(0)
+        # Unit combobox (kg or piece)
+        tk.Label(self, text="Unit:").grid(row=2, column=0, sticky="w")
+        self.unit_var = tk.StringVar()
+        self.unit_combobox = ttk.Combobox(self, textvariable=self.unit_var, values=["kg", "piece"], state="readonly")
+        self.unit_combobox.grid(row=2, column=1, sticky="ew")
+        self.unit_combobox.current(0)
 
-        ttk.Label(frame, text="Stock Quantity:").grid(row=0, column=6, padx=5, pady=5)
-        self.stock_entry = ttk.Entry(frame)
-        self.stock_entry.grid(row=0, column=7, padx=5, pady=5)
+        # Price
+        tk.Label(self, text="Price per unit:").grid(row=3, column=0, sticky="w")
+        self.price_entry = tk.Entry(self)
+        self.price_entry.grid(row=3, column=1, sticky="ew")
 
-        ttk.Button(frame, text="Add / Update Sweet", command=self.add_or_update_sweet).grid(row=0, column=8, padx=5, pady=5)
-        ttk.Button(frame, text="Delete Selected", command=self.delete_selected_sweet).grid(row=0, column=9, padx=5, pady=5)
-        # 🔍 Search bar
-        ttk.Label(frame, text="Search Sweet:").grid(row=1, column=0, sticky="w", pady=5, padx=5)
-        self.search_var = tk.StringVar()
-        self.search_var.trace_add("write", self.filter_stock_table)
-        search_entry = ttk.Entry(frame, textvariable=self.search_var, width=30)
-        search_entry.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
+        # Save button
+        self.save_btn = tk.Button(self, text="Save Sweet", command=self.save_sweet)
+        self.save_btn.grid(row=4, column=0, columnspan=2, pady=10)
 
+    def clear_entries(self):
+        self.name_entry.delete(0, tk.END)
+        self.qty_entry.delete(0, tk.END)
+        self.price_entry.delete(0, tk.END)
+        self.unit_combobox.current(0)
 
-        # Treeview to show stock
-        self.tree = ttk.Treeview(frame, columns=("Name", "Unit", "Price", "Stock"), show="headings")
-        for col in ("Name", "Unit", "Price", "Stock"):
-            self.tree.heading(col, text=col)
-        self.tree.grid(row=2, column=0, columnspan=10, pady=10, sticky="nsew")
+    def save_sweet(self):
+        sweet_name = self.name_entry.get().strip()
+        qty_str = self.qty_entry.get().strip()
+        price_str = self.price_entry.get().strip()
+        unit = self.unit_var.get().strip().lower()
 
-
-        self.refresh_stock()
-
-    def add_or_update_sweet(self):
-        name = self.name_entry.get().strip()
-        price = self.price_entry.get().strip()
-        unit = self.unit_combo.get()
-        stock = self.stock_entry.get().strip()
-
-        if not name or not price or not stock:
-            messagebox.showerror("Missing Info", "Please fill all fields.")
+        if not sweet_name or not qty_str or not price_str or not unit:
+            messagebox.showerror("Input Error", "Please fill all fields")
             return
 
         try:
-            price = float(price)
-            stock = float(stock)
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Price and stock must be numbers.")
+            qty, input_unit = parse_quantity_unit(qty_str)
+        except ValueError as e:
+            messagebox.showerror("Quantity Error", str(e))
             return
 
-        success = self.db.add_or_update_sweet(name, price, unit, stock)
+        if input_unit is None:
+            input_unit = unit
 
-        if success:
-            messagebox.showinfo("Success", "Sweet added/updated.")
-            self.refresh_stock()
-            self.name_entry.delete(0, tk.END)
-            self.price_entry.delete(0, tk.END)
-            self.stock_entry.delete(0, tk.END)
-        else:
-            messagebox.showerror("Error", "Something went wrong.")
-
-    def refresh_stock(self):
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-
-        sweets = self.db.get_all_sweets()
-        self.search_var.set("")  # Reset filter
-        self.filter_stock_table()
-
-    def delete_selected_sweet(self):
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("No selection", "Please select a sweet to delete.")
+        if input_unit != unit:
+            messagebox.showerror("Unit Mismatch", f"Sweet unit is '{unit}', but input quantity unit is '{input_unit}'. Please correct.")
             return
 
-        sweet_name = self.tree.item(selected[0])['values'][0]
+        try:
+            price = float(price_str)
+            if price < 0:
+                raise ValueError
+        except:
+            messagebox.showerror("Input Error", "Invalid price")
+            return
 
-        confirm = messagebox.askyesno("Confirm Delete", f"Delete '{sweet_name}' from stock?")
-        if confirm:
-            self.db.delete_sweet(sweet_name)
-            self.refresh_stock()
-            messagebox.showinfo("Deleted", f"'{sweet_name}' has been deleted.")
-    def filter_stock_table(self, *args):
-        search_term = self.search_var.get().lower()
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-
-        sweets = self.db.get_all_sweets()
-        filtered = [s for s in sweets if search_term in s["name"].lower()]
-
-        for sweet in filtered:
-            self.tree.insert("", "end", values=(
-                sweet["name"], sweet["unit"], sweet["price"], sweet["stock"]
-            ))
+        # Save or update sweet in database
+        self.db.add_or_update_sweet(name=sweet_name, quantity=qty, price=price, unit=unit)
+        messagebox.showinfo("Success", f"Sweet '{sweet_name}' saved successfully.")
+        self.clear_entries()
