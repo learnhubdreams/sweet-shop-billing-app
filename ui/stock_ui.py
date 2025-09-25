@@ -34,6 +34,7 @@ class StockUI:
 
         ttk.Button(frame, text="Add / Update Sweet", command=self.add_or_update_sweet).grid(row=0, column=8, padx=5, pady=5)
         ttk.Button(frame, text="Delete Selected", command=self.delete_selected_sweet).grid(row=0, column=9, padx=5, pady=5)
+
         # 🔍 Search bar
         ttk.Label(frame, text="Search Sweet:").grid(row=1, column=0, sticky="w", pady=5, padx=5)
         self.search_var = tk.StringVar()
@@ -41,13 +42,16 @@ class StockUI:
         search_entry = ttk.Entry(frame, textvariable=self.search_var, width=30)
         search_entry.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
 
-
         # Treeview to show stock
         self.tree = ttk.Treeview(frame, columns=("Name", "Unit", "Price", "Stock"), show="headings")
         for col in ("Name", "Unit", "Price", "Stock"):
             self.tree.heading(col, text=col)
+            self.tree.column(col, anchor="center")
         self.tree.grid(row=2, column=0, columnspan=10, pady=10, sticky="nsew")
 
+        # Configure grid weights for proper resizing
+        frame.rowconfigure(2, weight=1)
+        frame.columnconfigure(9, weight=1)
 
         self.refresh_stock()
 
@@ -68,10 +72,18 @@ class StockUI:
             messagebox.showerror("Invalid Input", "Price and stock must be numbers.")
             return
 
-        success = self.db.add_or_update_sweet(name, price, unit, stock)
+        # Check if entry exists for this sweet name + unit
+        existing = self.db.get_sweet_by_name_and_unit(name, unit)
+
+        if existing:
+            # Update existing entry: update price and add to stock
+            success = self.db.update_sweet_price_and_add_stock(name, unit, price, stock)
+        else:
+            # Insert new entry for this sweet + unit
+            success = self.db.insert_sweet(name, price, unit, stock)
 
         if success:
-            messagebox.showinfo("Success", "Sweet added/updated.")
+            messagebox.showinfo("Success", f"Sweet '{name}' ({unit}) added/updated.")
             self.refresh_stock()
             self.name_entry.delete(0, tk.END)
             self.price_entry.delete(0, tk.END)
@@ -83,7 +95,6 @@ class StockUI:
         for row in self.tree.get_children():
             self.tree.delete(row)
 
-        sweets = self.db.get_all_sweets()
         self.search_var.set("")  # Reset filter
         self.filter_stock_table()
 
@@ -93,13 +104,15 @@ class StockUI:
             messagebox.showwarning("No selection", "Please select a sweet to delete.")
             return
 
-        sweet_name = self.tree.item(selected[0])['values'][0]
+        item = self.tree.item(selected[0])
+        sweet_name, unit = item['values'][0], item['values'][1]
 
-        confirm = messagebox.askyesno("Confirm Delete", f"Delete '{sweet_name}' from stock?")
+        confirm = messagebox.askyesno("Confirm Delete", f"Delete '{sweet_name}' ({unit}) from stock?")
         if confirm:
-            self.db.delete_sweet(sweet_name)
+            self.db.delete_sweet_by_name_and_unit(sweet_name, unit)
             self.refresh_stock()
-            messagebox.showinfo("Deleted", f"'{sweet_name}' has been deleted.")
+            messagebox.showinfo("Deleted", f"'{sweet_name}' ({unit}) has been deleted.")
+
     def filter_stock_table(self, *args):
         search_term = self.search_var.get().lower()
         for row in self.tree.get_children():

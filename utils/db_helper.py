@@ -12,22 +12,24 @@ class DBHelper:
     def create_tables(self):
         cursor = self.conn.cursor()
 
-        # Sweets table
+        # Modified sweets table to allow multiple units per sweet by adding 'unit' as part of uniqueness
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sweets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE,
+                name TEXT,
                 price REAL,
                 unit TEXT,
-                stock REAL
+                stock REAL,
+                UNIQUE(name, unit)
             )
         """)
 
-        # Sales table
+        # Sales table stays same but now records unit too
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sweet_name TEXT,
+                unit TEXT,
                 qty REAL,
                 rate REAL,
                 total REAL,
@@ -38,14 +40,19 @@ class DBHelper:
 
         self.conn.commit()
 
-    def get_sweet_names(self):
+    def get_all_sweet_names(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT name FROM sweets")
+        cursor.execute("SELECT DISTINCT name FROM sweets")
         return [row["name"] for row in cursor.fetchall()]
 
-    def get_sweet_by_name(self, name):
+    def get_units_for_sweet(self, name):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM sweets WHERE name = ?", (name,))
+        cursor.execute("SELECT unit FROM sweets WHERE name = ?", (name,))
+        return [row["unit"] for row in cursor.fetchall()]
+
+    def get_sweet_by_name_and_unit(self, name, unit):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM sweets WHERE name = ? AND unit = ?", (name, unit))
         row = cursor.fetchone()
         if row:
             return dict(row)
@@ -53,12 +60,12 @@ class DBHelper:
 
     def add_or_update_sweet(self, name, price, unit, stock):
         cursor = self.conn.cursor()
-        existing = self.get_sweet_by_name(name)
+        existing = self.get_sweet_by_name_and_unit(name, unit)
 
         if existing:
             cursor.execute("""
-                UPDATE sweets SET price = ?, unit = ?, stock = stock + ? WHERE name = ?
-            """, (price, unit, stock, name))
+                UPDATE sweets SET price = ?, stock = stock + ? WHERE name = ? AND unit = ?
+            """, (price, stock, name, unit))
         else:
             cursor.execute("""
                 INSERT INTO sweets (name, price, unit, stock) VALUES (?, ?, ?, ?)
@@ -78,10 +85,11 @@ class DBHelper:
 
         for item in items:
             cursor.execute("""
-                INSERT INTO sales (sweet_name, qty, rate, total, payment_mode, date)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO sales (sweet_name, unit, qty, rate, total, payment_mode, date)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 item["name"],
+                item["unit"],
                 item["qty"],
                 item["rate"],
                 item["total"],
@@ -89,10 +97,10 @@ class DBHelper:
                 date
             ))
 
-            # Reduce stock
+            # Reduce stock for the correct unit
             cursor.execute("""
-                UPDATE sweets SET stock = stock - ? WHERE name = ?
-            """, (item["qty"], item["name"]))
+                UPDATE sweets SET stock = stock - ? WHERE name = ? AND unit = ?
+            """, (item["qty"], item["name"], item["unit"]))
 
         self.conn.commit()
 
@@ -108,10 +116,12 @@ class DBHelper:
 
         data = {row["payment_mode"]: row["total"] for row in cursor.fetchall()}
         return data
+
     def delete_sweet(self, name):
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM sweets WHERE name = ?", (name,))
         self.conn.commit()
+
     def get_sales_summary_by_date_range(self, from_date, to_date):
         cursor = self.conn.cursor()
         cursor.execute("""
